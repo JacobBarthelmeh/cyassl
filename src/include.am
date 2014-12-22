@@ -45,6 +45,11 @@ src_libcyassl_la_SOURCES += ctaocrypt/src/fips.c
 src_libcyassl_la_SOURCES += ctaocrypt/src/fips_test.c
 endif
 
+if BUILD_ECC25519
+src_libcyassl_la_SOURCES += ctaocrypt/src/ecc25519.c
+src_libcyassl_la_SOURCES += ctaocrypt/src/ecc25519_fe.c
+endif
+
 # fips last file
 if BUILD_FIPS
 src_libcyassl_la_SOURCES += ctaocrypt/src/wolfcrypt_last.c

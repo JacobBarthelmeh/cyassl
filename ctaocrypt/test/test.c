@@ -62,6 +62,9 @@
 #ifdef HAVE_ECC
     #include <cyassl/ctaocrypt/ecc.h>
 #endif
+#ifdef HAVE_ECC25519
+    #include <cyassl/ctaocrypt/ecc25519.h>
+#endif
 #ifdef HAVE_BLAKE2
     #include <cyassl/ctaocrypt/blake2.h>
 #endif
@@ -182,6 +185,9 @@ int pbkdf2_test(void);
     #ifdef HAVE_ECC_ENCRYPT
         int  ecc_encrypt_test(void);
     #endif
+#endif
+#ifdef HAVE_ECC25519
+    int  ecc25519_test(void);
 #endif
 #ifdef HAVE_BLAKE2
     int  blake2b_test(void);
@@ -500,6 +506,13 @@ int ctaocrypt_test(void* args)
         else
             printf( "ECC Enc  test passed!\n");
     #endif
+#endif
+
+#ifdef HAVE_ECC25519
+    if ( (ret = ecc25519_test()) != 0)
+        return err_sys("ECC25519 test failed!\n", ret);
+    else
+        printf( "ECC25519 test passed!\n");
 #endif
 
 #ifdef HAVE_LIBZ
@@ -4847,6 +4860,83 @@ int ecc_encrypt_test(void)
 
 #endif /* HAVE_ECC_ENCRYPT */
 #endif /* HAVE_ECC */
+
+#ifdef HAVE_ECC25519
+
+int ecc25519_test(void)
+{
+    RNG     rng;
+    byte    sharedA[1024];
+    byte    sharedB[1024];
+    word32  x, y;
+    byte    exportBuf[1024];
+    int ret;
+    ecc25519_key userA, userB, pubKey;
+
+    ret = InitRng(&rng);
+    if (ret != 0)
+        return -1001;
+
+    ecc25519_init(&userA);
+    ecc25519_init(&userB);
+    ecc25519_init(&pubKey);
+
+    ret = ecc25519_make_key(&rng, 32, &userA);
+
+    if (ret != 0)
+        return -1014;
+
+    ret = ecc25519_make_key(&rng, 32, &userB);
+
+    if (ret != 0)
+        return -1002;
+
+    x = sizeof(sharedA);
+    ret = ecc25519_shared_secret(&userA, &userB, sharedA, &x);
+
+    if (ret != 0)
+        return -1015;
+
+    y = sizeof(sharedB);
+    ret = ecc25519_shared_secret(&userB, &userA, sharedB, &y);
+
+    if (ret != 0)
+        return -1003;
+
+    if (y != x)
+        return -1004;
+
+    if (memcmp(sharedA, sharedB, x))
+        return -1005;
+
+    x = sizeof(exportBuf);
+    ret = ecc25519_export_public(&userA, exportBuf, &x);
+    if (ret != 0)
+        return -1006;
+
+    ret = ecc25519_import_public(exportBuf, x, &pubKey);
+
+    if (ret != 0)
+        return -1007;
+
+    y = sizeof(sharedB);
+    ret = ecc25519_shared_secret(&userB, &pubKey, sharedB, &y);
+
+    if (ret != 0)
+        return -1008;
+
+    if (memcmp(sharedA, sharedB, y))
+        return -1010;
+
+
+    ecc25519_free(&pubKey);
+    ecc25519_free(&userB);
+    ecc25519_free(&userA);
+
+    return 0;
+}
+#endif /* HAVE_ECC25519 */
+
 
 #ifdef HAVE_LIBZ
 

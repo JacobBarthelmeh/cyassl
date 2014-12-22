@@ -51,8 +51,12 @@
 #include <cyassl/ctaocrypt/rsa.h>
 #include <cyassl/ctaocrypt/asn.h>
 #include <cyassl/ctaocrypt/ripemd.h>
-#include <cyassl/ctaocrypt/ecc.h>
-
+#ifdef HAVE_ECC
+    #include <cyassl/ctaocrypt/ecc.h>
+#endif
+#ifdef HAVE_ECC25519
+    #include <cyassl/ctaocrypt/ecc25519.h>
+#endif
 #include <cyassl/ctaocrypt/dh.h>
 #ifdef HAVE_CAVIUM
     #include "cavium_sysdep.h"
@@ -114,6 +118,10 @@ void bench_dh(void);
 #ifdef HAVE_ECC
 void bench_eccKeyGen(void);
 void bench_eccKeyAgree(void);
+#endif
+#ifdef HAVE_ECC25519
+void bench_ecc25519KeyGen(void);
+void bench_ecc25519KeyAgree(void);
 #endif
 #ifdef HAVE_NTRU
 void bench_ntru(void);
@@ -263,6 +271,11 @@ int benchmark_test(void *args)
     #if defined(FP_ECC)
         ecc_fp_free();
     #endif
+#endif
+
+#ifdef HAVE_ECC25519
+    bench_ecc25519KeyGen();
+    bench_ecc25519KeyAgree();
 #endif
 
     return 0;
@@ -1492,6 +1505,86 @@ void bench_eccKeyAgree(void)
     ecc_free(&genKey);
 }
 #endif /* HAVE_ECC */
+
+#ifdef HAVE_ECC25519
+void bench_ecc25519KeyGen(void)
+{
+    ecc25519_key genKey;
+    double start, total, each, milliEach;
+    int    i, ret;
+
+    ret = InitRng(&rng);
+    if (ret < 0) {
+        printf("InitRNG failed\n");
+        return;
+    }
+    /* 256 bit */
+    start = current_time(1);
+
+    for(i = 0; i < genTimes; i++) {
+        ecc25519_make_key(&rng, 32, &genKey);
+        ecc25519_free(&genKey);
+    }
+
+    total = current_time(0) - start;
+    each  = total / genTimes;  /* per second  */
+    milliEach = each * 1000;   /* millisconds */
+    printf("\n");
+    printf("ECC25519 256 key generation %6.3f milliseconds, avg over %d"
+           " iterations\n", milliEach, genTimes);
+}
+
+
+void bench_ecc25519KeyAgree(void)
+{
+    ecc25519_key genKey, genKey2;
+    double start, total, each, milliEach;
+    int    i, ret;
+    byte   shared[1024];
+    word32 x = 0;
+
+    ecc25519_init(&genKey);
+    ecc25519_init(&genKey2);
+
+    ret = InitRng(&rng);
+    if (ret < 0) {
+        printf("InitRNG failed\n");
+        return;
+    }
+
+    ret = ecc25519_make_key(&rng, 32, &genKey);
+    if (ret != 0) {
+        printf("ecc25519_make_key failed\n");
+        return;
+    }
+    ret = ecc25519_make_key(&rng, 32, &genKey2);
+    if (ret != 0) {
+        printf("ecc25519_make_key failed\n");
+        return;
+    }
+
+    /* 256 bit */
+    start = current_time(1);
+
+    for(i = 0; i < agreeTimes; i++) {
+        x = sizeof(shared);
+        ret = ecc25519_shared_secret(&genKey, &genKey2, shared, &x);
+        if (ret != 0) {
+            printf("ecc25519_shared_secret failed\n");
+            return;
+        }
+    }
+
+    total = current_time(0) - start;
+    each  = total / agreeTimes;  /* per second  */
+    milliEach = each * 1000;   /* millisconds */
+    printf("ECC25519-DHE key agreement  %6.3f milliseconds, avg over %d"
+           " iterations\n", milliEach, agreeTimes);
+
+    ecc25519_free(&genKey2);
+    ecc25519_free(&genKey);
+}
+#endif /* HAVE_ECC25519 */
 
 #ifdef _WIN32
 

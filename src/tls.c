@@ -1486,27 +1486,88 @@ int TLSX_ValidateEllipticCurves(CYASSL* ssl, byte first, byte second) {
     word16         octets    = 0; /* acording to 'ecc_set_type ecc_sets[];' */
     int            sig       = 0; /* valitade signature */
     int            key       = 0; /* validate key       */
+    int            use25519  = 1;
 
     (void)oid;
     (void)octets;
 
-    if (!extension)
-        return 1; /* no suite restriction */
+    ssl->specs.useCurve25519 = 0; /* flag for if using curve25519 functions */
+
+    /*if ECDSA or ECDH don't use curve25519*/
+#ifdef HAVE_ECC25519
+        switch (second) {
+            /* At the moment curve25519 does not support signing */
+            /* ECDHE_ECDSA */
+            case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
+            case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
+            case TLS_ECDHE_ECDSA_WITH_RC4_128_SHA:
+            case TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA:
+            case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256:
+            case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384:
+            case TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:
+            case TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:
+            case TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8:
+            case TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8:
+            case TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:
+
+            /* ECDH_ECDSA */
+            case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA:
+            case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA:
+            case TLS_ECDH_ECDSA_WITH_RC4_128_SHA:
+            case TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA:
+            case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256:
+            case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384:
+            case TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256:
+            case TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384:
+#ifndef NO_RSA
+            /* ECDH_RSA */
+            case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA:
+            case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA:
+            case TLS_ECDH_RSA_WITH_RC4_128_SHA:
+            case TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA:
+            case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256:
+            case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384:
+            case TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256:
+            case TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384:
+                use25519 = 0;
+                break;
+#endif
+            default:
+                break;
+        }
+
+#endif
+
+    if (!extension && !use25519) {
+        /* no curve restrictions sent accross */
+        CYASSL_MSG("Can not use curve25519 but there is no other restrictions");
+        return 1;
+    } else {
+	    if (!extension && use25519) {
+#ifdef HAVE_ECC25519
+            ssl->specs.useCurve25519 = 1;
+#endif
+	        return 1; /* no suite restriction */
+	    }
+    }
 
     for (curve = extension->data; curve && !(sig && key); curve = curve->next) {
 
         switch (curve->name) {
-            case CYASSL_ECC_SECP160R1: oid = ECC_160R1; octets = 20; break;
-            case CYASSL_ECC_SECP192R1: oid = ECC_192R1; octets = 24; break;
-            case CYASSL_ECC_SECP224R1: oid = ECC_224R1; octets = 28; break;
-            case CYASSL_ECC_SECP256R1: oid = ECC_256R1; octets = 32; break;
-            case CYASSL_ECC_SECP384R1: oid = ECC_384R1; octets = 48; break;
-            case CYASSL_ECC_SECP521R1: oid = ECC_521R1; octets = 66; break;
+#ifdef HAVE_ECC25519
+            case CYASSL_ECC_CURVE25519: oid = CURVE25519_OID;   octets = 32;
+                                        ssl->specs.useCurve25519 = 1; break;
+#endif
+            case CYASSL_ECC_SECP160R1:  oid = ECC_160R1; octets = 20; break;
+            case CYASSL_ECC_SECP192R1:  oid = ECC_192R1; octets = 24; break;
+            case CYASSL_ECC_SECP224R1:  oid = ECC_224R1; octets = 28; break;
+            case CYASSL_ECC_SECP256R1:  oid = ECC_256R1; octets = 32; break;
+            case CYASSL_ECC_SECP384R1:  oid = ECC_384R1; octets = 48; break;
+            case CYASSL_ECC_SECP521R1:  oid = ECC_521R1; octets = 66; break;
             default: continue; /* unsupported curve */
         }
 
         switch (second) {
-#ifndef NO_DSA
             /* ECDHE_ECDSA */
             case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:
             case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA:
@@ -1534,7 +1595,6 @@ int TLSX_ValidateEllipticCurves(CYASSL* ssl, byte first, byte second) {
                 sig |= ssl->pkCurveOID == oid;
                 key |= ssl->pkCurveOID == oid;
             break;
-#endif
 #ifndef NO_RSA
             /* ECDHE_RSA */
             case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:

@@ -63,6 +63,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = CHACHA20_256_KEY_SIZE;
         ssl->specs.block_size            = CHACHA20_BLOCK_SIZE;
         ssl->specs.iv_size               = CHACHA20_IV_SIZE;
@@ -81,6 +83,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = CHACHA20_256_KEY_SIZE;
         ssl->specs.block_size            = CHACHA20_BLOCK_SIZE;
         ssl->specs.iv_size               = CHACHA20_IV_SIZE;
@@ -117,7 +121,7 @@ int SetCipherSpecs(CYASSL* ssl)
     
     switch (ssl->options.cipherSuite) {
 
-#ifdef HAVE_ECC
+#if defined(HAVE_ECC) || defined(HAVE_ECC25519)
 
 #ifdef BUILD_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
     case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 :
@@ -129,6 +133,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -145,6 +151,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -161,6 +169,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -177,6 +187,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -193,6 +205,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -209,6 +223,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -225,6 +241,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -241,6 +259,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
@@ -257,6 +277,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -274,6 +296,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -291,6 +315,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = DES3_KEY_SIZE;
         ssl->specs.block_size            = DES_BLOCK_SIZE;
         ssl->specs.iv_size               = DES_IV_SIZE;
@@ -308,6 +334,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = DES3_KEY_SIZE;
         ssl->specs.block_size            = DES_BLOCK_SIZE;
         ssl->specs.iv_size               = DES_IV_SIZE;
@@ -325,6 +353,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = RC4_KEY_SIZE;
         ssl->specs.iv_size               = 0;
         ssl->specs.block_size            = 0;
@@ -342,6 +372,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = RC4_KEY_SIZE;
         ssl->specs.iv_size               = 0;
         ssl->specs.block_size            = 0;
@@ -359,6 +391,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = DES3_KEY_SIZE;
         ssl->specs.block_size            = DES_BLOCK_SIZE;
         ssl->specs.iv_size               = DES_IV_SIZE;
@@ -376,6 +410,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = DES3_KEY_SIZE;
         ssl->specs.block_size            = DES_BLOCK_SIZE;
         ssl->specs.iv_size               = DES_IV_SIZE;
@@ -393,6 +429,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = RC4_KEY_SIZE;
         ssl->specs.iv_size               = 0;
         ssl->specs.block_size            = 0;
@@ -410,6 +448,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = RC4_KEY_SIZE;
         ssl->specs.iv_size               = 0;
         ssl->specs.block_size            = 0;
@@ -427,6 +467,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -444,6 +486,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -461,6 +505,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -478,6 +524,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -495,6 +543,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -512,6 +562,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AES_IV_SIZE;
@@ -529,6 +581,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -547,6 +601,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = (ssl->options.testCurve25519)?0:1;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -565,6 +621,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -583,6 +641,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -601,6 +661,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -619,6 +681,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -637,6 +701,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -655,6 +721,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA384_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 1;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -673,6 +741,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_128_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;
@@ -691,6 +761,8 @@ int SetCipherSpecs(CYASSL* ssl)
         ssl->specs.hash_size             = SHA256_DIGEST_SIZE;
         ssl->specs.pad_size              = PAD_SHA;
         ssl->specs.static_ecdh           = 0;
+	    if (ssl->specs.useCurve25519)
+	        ssl->specs.useCurve25519     = 0;
         ssl->specs.key_size              = AES_256_KEY_SIZE;
         ssl->specs.block_size            = AES_BLOCK_SIZE;
         ssl->specs.iv_size               = AEAD_IMP_IV_SZ;

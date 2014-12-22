@@ -683,6 +683,7 @@ int CyaSSL_UseSupportedCurve(CYASSL* ssl, word16 name)
         case CYASSL_ECC_SECP256R1:
         case CYASSL_ECC_SECP384R1:
         case CYASSL_ECC_SECP521R1:
+        case CYASSL_ECC_CURVE25519:
             break;
 
         default:
@@ -704,6 +705,7 @@ int CyaSSL_CTX_UseSupportedCurve(CYASSL_CTX* ctx, word16 name)
         case CYASSL_ECC_SECP256R1:
         case CYASSL_ECC_SECP384R1:
         case CYASSL_ECC_SECP521R1:
+        case CYASSL_ECC_CURVE25519:
             break;
 
         default:
@@ -8962,14 +8964,14 @@ const char* CyaSSL_CIPHER_get_name(const CYASSL_CIPHER* cipher)
         }
 #endif
 
-#if defined(HAVE_ECC) || defined(HAVE_AESCCM)
-        /* Awkwardly, the ECC cipher suites use the ECC_BYTE as expected,
-         * but the AES-CCM cipher suites also use it, even the ones that
-         * aren't ECC. */
-        if (cipher->ssl->options.cipherSuite0 == ECC_BYTE) {
-        /* ECC suites */
-        switch (cipher->ssl->options.cipherSuite) {
-#ifdef HAVE_ECC
+#if defined(HAVE_ECC) || defined(HAVE_AESCCM) || defined(HAVE_ECC25519)
+            /* Awkwardly, the ECC cipher suites use the ECC_BYTE as expected,
+             * but the AES-CCM cipher suites also use it, even the ones that
+             * aren't ECC. */
+            if (cipher->ssl->options.cipherSuite0 == ECC_BYTE) {
+            /* ECC suites */
+            switch (cipher->ssl->options.cipherSuite) {
+#if defined(HAVE_ECC) || defined(HAVE_ECC25519)
 #ifndef NO_RSA
             case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 :
                 return "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256";

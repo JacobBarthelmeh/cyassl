@@ -6,6 +6,8 @@ nobase_include_HEADERS+= \
                          cyassl/ctaocrypt/arc4.h \
                          cyassl/ctaocrypt/asn.h \
                          cyassl/ctaocrypt/asn_public.h \
+                         cyassl/ctaocrypt/ecc25519.h \
+                         cyassl/ctaocrypt/ecc25519_fe.h \
                          cyassl/ctaocrypt/poly1305.h \
                          cyassl/ctaocrypt/camellia.h \
                          cyassl/ctaocrypt/coding.h \

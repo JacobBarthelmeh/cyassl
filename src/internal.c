@@ -374,6 +374,9 @@ int InitSSL_Ctx(CYASSL_CTX* ctx, CYASSL_METHOD* method)
 #ifdef HAVE_ECC
     ctx->eccTempKeySz       = ECDHE_SIZE;
 #endif
+#ifdef HAVE_ECC25519
+    ctx->ecc25519TempKeySz  = ECDHE_SIZE;
+#endif
 
 #if defined(OPENSSL_EXTRA) || defined(HAVE_WEBSERVER)
     ctx->passwd_cb   = 0;
@@ -1565,6 +1568,16 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->eccTempKey = NULL;
 #endif
 
+    ssl->specs.useCurve25519 = 0;
+#ifdef HAVE_ECC25519
+    ssl->specs.useCurve25519 = 1; /* start with prefrence for curve25519 */
+    ssl->ecc25519TempKeySz = ctx->ecc25519TempKeySz;
+    ssl->peerEcc25519KeyPresent = 0;
+    ssl->ecc25519TempKeyPresent = 0;
+    ssl->peerEcc25519Key = NULL;
+    ssl->ecc25519TempKey = NULL;
+#endif
+
     ssl->timeout = ctx->timeout;
     ssl->rfd = -1;   /* set to invalid descriptor */
     ssl->wfd = -1;
@@ -1603,6 +1616,7 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->options.downgrade    = ctx->method->downgrade;
     ssl->options.minDowngrade = TLSv1_MINOR;     /* current default */
     ssl->error = 0;
+    ssl->options.testCurve25519 = 0;
     ssl->options.connReset = 0;
     ssl->options.isClosed  = 0;
     ssl->options.closeNotify  = 0;
@@ -1924,6 +1938,25 @@ int InitSSL(CYASSL* ssl, CYASSL_CTX* ctx)
     ssl->sessionSecretCtx = NULL;
 #endif
 
+#ifdef HAVE_ECC25519
+    ssl->peerEcc25519Key = (ecc25519_key*)XMALLOC(sizeof(ecc25519_key),
+                                                   ctx->heap, DYNAMIC_TYPE_ECC);
+    if (ssl->peerEcc25519Key == NULL) {
+        CYASSL_MSG("PeerEcc25519Key Memory error");
+        return MEMORY_E;
+    }
+    ssl->ecc25519TempKey = (ecc25519_key*)XMALLOC(sizeof(ecc25519_key),
+                                                   ctx->heap, DYNAMIC_TYPE_ECC);
+    if (ssl->ecc25519TempKey == NULL) {
+        CYASSL_MSG("Ecc25519TempKey Memory error");
+        return MEMORY_E;
+    }
+    if (ecc25519_init(ssl->peerEcc25519Key) != 0)
+        return ECC_BAD_ARG_E;
+    if (ecc25519_init(ssl->ecc25519TempKey) != 0)
+        return ECC_BAD_ARG_E;
+#endif
+
     /* make sure server has DH parms, and add PSK if there, add NTRU too */
     if (ssl->options.side == CYASSL_SERVER_END)
         InitSuites(ssl->suites, ssl->version, haveRSA, havePSK,
@@ -2041,6 +2074,18 @@ void SSL_ResourceFree(CYASSL* ssl)
         XFREE(ssl->eccDsaKey, ssl->heap, DYNAMIC_TYPE_ECC);
     }
 #endif
+#ifdef HAVE_ECC25519
+    if (ssl->peerEcc25519Key) {
+        if (ssl->peerEcc25519KeyPresent)
+            ecc25519_free(ssl->peerEcc25519Key);
+        XFREE(ssl->peerEcc25519Key, ssl->heap, DYNAMIC_TYPE_ECC);
+    }
+    if (ssl->ecc25519TempKey) {
+        if (ssl->ecc25519TempKeyPresent)
+            ecc25519_free(ssl->ecc25519TempKey);
+        XFREE(ssl->ecc25519TempKey, ssl->heap, DYNAMIC_TYPE_ECC);
+    }
+#endif
 #ifdef HAVE_PK_CALLBACKS
     #ifdef HAVE_ECC
         XFREE(ssl->buffers.peerEccDsaKey.buffer, ssl->heap, DYNAMIC_TYPE_ECC);
@@ -2145,6 +2190,27 @@ void FreeHandshakeResources(CYASSL* ssl)
         }
         XFREE(ssl->eccDsaKey, ssl->heap, DYNAMIC_TYPE_ECC);
         ssl->eccDsaKey = NULL;
+    }
+#endif
+
+#ifdef HAVE_ECC25519
+    if (ssl->peerEcc25519Key)
+    {
+        if (ssl->peerEcc25519KeyPresent) {
+            ecc25519_free(ssl->peerEcc25519Key);
+            ssl->peerEcc25519KeyPresent = 0;
+        }
+        XFREE(ssl->peerEcc25519Key, ssl->heap, DYNAMIC_TYPE_ECC);
+        ssl->peerEcc25519Key = NULL;
+    }
+    if (ssl->ecc25519TempKey)
+    {
+        if (ssl->ecc25519TempKeyPresent) {
+            ecc25519_free(ssl->ecc25519TempKey);
+            ssl->ecc25519TempKeyPresent = 0;
+        }
+        XFREE(ssl->ecc25519TempKey, ssl->heap, DYNAMIC_TYPE_ECC);
+        ssl->ecc25519TempKey = NULL;
     }
 #endif
 #ifdef HAVE_PK_CALLBACKS
@@ -9351,10 +9417,16 @@ static void PickHashSigAlgo(CYASSL* ssl,
 
             /* last, compression */
         output[idx++] = COMP_LEN;
+        //output[idx-1]++; //add suport also for montgomery
         if (ssl->options.usingCompression)
             output[idx++] = ZLIB_COMPRESSION;
         else
             output[idx++] = NO_COMPRESSION;
+        if (ssl->specs.useCurve25519) {
+            printf("sending montgomery format\n");
+            idx--;//currently needed because malformed when 2 sent
+            output[idx++] = MONTGOMERY_X_LE;
+        }
 
 #ifdef HAVE_TLS_EXTENSIONS
         idx += TLSX_WriteRequest(ssl, output + idx);
@@ -9604,6 +9676,15 @@ static void PickHashSigAlgo(CYASSL* ssl,
         if (compression != ZLIB_COMPRESSION && ssl->options.usingCompression) {
             CYASSL_MSG("Server refused compression, turning off");
             ssl->options.usingCompression = 0;  /* turn off if server refused */
+        }
+
+        /* check for montgomery point format support */
+        printf("compression recieved %d\n", compression);
+        if (compression == MONTGOMERY_X_LE) {
+            printf(" sent that they suport montgomery\n");
+        }
+        else {
+            ssl->specs.useCurve25519 = 0;
         }
 
         *inOutIdx = i;
@@ -9911,7 +9992,7 @@ static void PickHashSigAlgo(CYASSL* ssl,
         }  /* dh_kea */
     #endif /* NO_DH */
 
-    #ifdef HAVE_ECC
+    #if defined(HAVE_ECC) || defined(HAVE_ECC25519)
         if (ssl->specs.kea == ecc_diffie_hellman_kea)
         {
         byte b;
@@ -9927,28 +10008,61 @@ static void PickHashSigAlgo(CYASSL* ssl,
         *inOutIdx += 1;   /* curve type, eat leading 0 */
         b = input[(*inOutIdx)++];
 
-        if (b != secp256r1 && b != secp384r1 && b != secp521r1 && b !=
-                 secp160r1 && b != secp192r1 && b != secp224r1)
-            return ECC_CURVE_ERROR;
+
+#ifdef HAVE_ECC25519
+        if (ssl->specs.useCurve25519) {
+            if (b != curve25519)
+                return ECC_CURVE_ERROR;
+        }
+#endif
+#ifdef HAVE_ECC
+        if (!ssl->specs.useCurve25519) {
+           if (b != secp256r1 && b != secp384r1 && b != secp521r1 && b !=
+                 secp160r1 && b != secp192r1 && b != secp224r1) {
+                return ECC_CURVE_ERROR;
+            }
+        }
+#endif
 
         length = input[(*inOutIdx)++];
 
         if ((*inOutIdx - begin) + length > size)
             return BUFFER_ERROR;
 
-        if (ssl->peerEccKeyPresent) {  /* don't leak on reuse */
-            ecc_free(ssl->peerEccKey);
-            ssl->peerEccKeyPresent = 0;
-            ecc_init(ssl->peerEccKey);
-        }
-
-        if (ecc_import_x963(input + *inOutIdx, length, ssl->peerEccKey) != 0)
-            return ECC_PEERKEY_ERROR;
+#ifdef HAVE_ECC25519
+            if (ssl->peerEcc25519KeyPresent) {  /* don't leak on reuse */
+                ecc25519_free(ssl->peerEcc25519Key);
+                ssl->peerEcc25519KeyPresent = 0;
+                ecc25519_init(ssl->peerEcc25519Key);
+            }
+            if (ssl->specs.useCurve25519) {
+	            if (ecc25519_import_public(input + *inOutIdx, length,
+	                        ssl->peerEcc25519Key) != 0) {
+	                return ECC_PEERKEY_ERROR;
+	            }
+	            else {
+	                ssl->peerEcc25519KeyPresent = 1;
+	            }
+            }
+#endif
+#ifdef HAVE_ECC
+            if (ssl->peerEccKeyPresent) {  /* don't leak on reuse */
+                ecc_free(ssl->peerEccKey);
+                ssl->peerEccKeyPresent = 0;
+                ecc_init(ssl->peerEccKey);
+            }
+            if (!ssl->specs.useCurve25519) {
+                if (ecc_import_x963(input + *inOutIdx, length, ssl->peerEccKey)
+                        != 0)
+                    return ECC_PEERKEY_ERROR;
+                else
+                    ssl->peerEccKeyPresent = 1;
+            }
+#endif
 
         *inOutIdx += length;
-        ssl->peerEccKeyPresent = 1;
         }
-    #endif /* HAVE_ECC */
+    #endif /* HAVE_ECC || HAVE_ECC25519 */
 
     #if !defined(NO_DH) && !defined(NO_PSK)
     if (ssl->specs.kea == dhe_psk_kea) {
@@ -10032,7 +10146,7 @@ static void PickHashSigAlgo(CYASSL* ssl,
     }
     #endif /* !NO_DH || !NO_PSK */
 
-    #if !defined(NO_DH) || defined(HAVE_ECC)
+    #if !defined(NO_DH) || defined(HAVE_ECC) || defined(HAVE_ECC25519)
     if (!ssl->options.usingAnon_cipher &&
         (ssl->specs.kea == ecc_diffie_hellman_kea ||
          ssl->specs.kea == diffie_hellman_kea))
@@ -10691,14 +10805,21 @@ static void PickHashSigAlgo(CYASSL* ssl,
                 }
                 break;
         #endif /* HAVE_NTRU */
-        #ifdef HAVE_ECC
+        #if defined(HAVE_ECC) || defined(HAVE_ECC25519)
             case ecc_diffie_hellman_kea:
                 {
+                #ifdef HAVE_ECC
                     ecc_key  myKey;
                     ecc_key* peerKey = NULL;
-                    word32   size = MAX_ENCRYPT_SZ;
+                #endif
+                #ifdef HAVE_ECC25519
+                    ecc25519_key  myKey25519;
+                    ecc25519_key* peerKey25519 = NULL;
+                #endif
+                    word32  size = MAX_ENCRYPT_SZ;
 
                     if (ssl->specs.static_ecdh) {
+                #ifdef HAVE_ECC
                         /* TODO: EccDsa is really fixed Ecc change naming */
                         if (!ssl->peerEccDsaKeyPresent ||
                                                       !ssl->peerEccDsaKey->dp) {
@@ -10708,24 +10829,39 @@ static void PickHashSigAlgo(CYASSL* ssl,
                             return NO_PEER_KEY;
                         }
                         peerKey = ssl->peerEccDsaKey;
+                #endif
                     }
                     else {
-                        if (!ssl->peerEccKeyPresent || !ssl->peerEccKey->dp) {
-                        #ifdef CYASSL_SMALL_STACK
-                            XFREE(encSecret, NULL, DYNAMIC_TYPE_TMP_BUFFER);
-                        #endif
-                            return NO_PEER_KEY;
+                #ifdef HAVE_ECC25519
+                        if (ssl->specs.useCurve25519) {
+                            if (!ssl->peerEcc25519KeyPresent ||
+                                                    !ssl->peerEcc25519Key->dp) {
+                            #ifdef CYASSL_SMALL_STACK
+                                XFREE(encSecret, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+                            #endif
+                                return NO_PEER_KEY;
+                            }
+
+                            peerKey25519 = ssl->peerEcc25519Key;
                         }
-                        peerKey = ssl->peerEccKey;
+                #endif
+                #ifdef HAVE_ECC
+                        if (!ssl->specs.useCurve25519) {
+                            if (!ssl->peerEccKeyPresent ||
+                                                      !ssl->peerEccKey->dp) {
+                            #ifdef CYASSL_SMALL_STACK
+                                XFREE(encSecret, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+                            #endif
+                                return NO_PEER_KEY;
+                            }
+
+                            peerKey = ssl->peerEccKey;
+                        }
+                #endif
                     }
 
-                    if (peerKey == NULL) {
-                    #ifdef CYASSL_SMALL_STACK
-                        XFREE(encSecret, NULL, DYNAMIC_TYPE_TMP_BUFFER);
-                    #endif
-                        return NO_PEER_KEY;
-                    }
-
+            #ifdef HAVE_ECC
+                    if (peerKey != NULL && !ssl->specs.useCurve25519) {
                     ecc_init(&myKey);
                     ret = ecc_make_key(ssl->rng, peerKey->dp->size, &myKey);
                     if (ret != 0) {
@@ -10752,9 +10888,51 @@ static void PickHashSigAlgo(CYASSL* ssl,
 
                     ssl->arrays->preMasterSz = size;
                     ecc_free(&myKey);
+                    }
+                    else {
+            #endif
+
+            #ifdef HAVE_ECC25519
+                   if (peerKey25519 != NULL && ssl->specs.useCurve25519) {
+                   if (ecc25519_init(&myKey25519) != 0)
+                       return ECC_BAD_ARG_E;
+                   ret = ecc25519_make_key(ssl->rng, peerKey25519->dp->size,
+                                                                   &myKey25519);
+                   if (ret != 0)
+                       return ECC_MAKEKEY_ERROR;
+
+                   /* precede export with 1 byte length */
+                   ret = ecc25519_export_public(&myKey25519,
+                                                          encSecret + 1, &size);
+                   encSecret[0] = (byte)size;
+                   encSz = size + 1;
+
+                   if (ret != 0)
+                       ret = ECC_EXPORT_ERROR;
+                   else {
+                       size = sizeof(ssl->arrays->preMasterSecret);
+                       ret  = ecc25519_shared_secret(&myKey25519, peerKey25519,
+                                           ssl->arrays->preMasterSecret, &size);
+                       if (ret != 0)
+                           ret = ECC_SHARED_ERROR;
+                   }
+
+                   ssl->arrays->preMasterSz = size;
+                   ecc25519_free(&myKey25519);
+                   }
+                   else {
+            #endif
+                        #ifdef CYASSL_SMALL_STACK
+                            XFREE(encSecret, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+                        #endif
+                        return NO_PEER_KEY;
+                        }
+#if defined(HAVE_ECC) && defined(HAVE_ECC25519)
+                   }
+#endif
                 }
                 break;
-        #endif /* HAVE_ECC */
+        #endif /* HAVE_ECC || HAVE_ECC25519*/
             default:
             #ifdef CYASSL_SMALL_STACK
                 XFREE(encSecret, NULL, DYNAMIC_TYPE_TMP_BUFFER);
@@ -11358,6 +11536,12 @@ int DoSessionTicket(CYASSL* ssl,
         else
             output[idx++] = NO_COMPRESSION;
 
+        if (ssl->specs.useCurve25519) {
+            printf("server send montgomery\n");
+            idx--;
+            output[idx++] = MONTGOMERY_X_LE;
+        }
+
             /* last, extensions */
 #ifdef HAVE_TLS_EXTENSIONS
         TLSX_WriteResponse(ssl, output + idx);
@@ -11416,6 +11600,19 @@ int DoSessionTicket(CYASSL* ssl,
 
 #endif /* HAVE_ECC */
 
+#ifdef HAVE_ECC25519
+
+    static byte SetCurve25519Id(int size)
+    {
+        switch(size) {
+            case 32:
+                return curve25519;
+            default:
+                return 0;
+        }
+    }
+
+#endif /* HAVE_ECC25519 */
 
     int SendServerKeyExchange(CYASSL* ssl)
     {
@@ -11615,7 +11812,7 @@ int DoSessionTicket(CYASSL* ssl,
         }
     #endif /* !NO_DH && !NO_PSK */
 
-    #ifdef HAVE_ECC
+        #if defined(HAVE_ECC) || defined(HAVE_ECC25519)
         if (ssl->specs.kea == ecc_diffie_hellman_kea)
         {
             byte    *output;
@@ -11626,13 +11823,15 @@ int DoSessionTicket(CYASSL* ssl,
         #ifndef NO_RSA
             RsaKey   rsaKey;
         #endif
+        #ifdef HAVE_ECC
             ecc_key  dsaKey;
-        #ifdef CYASSL_SMALL_STACK
-            byte*    exportBuf = NULL;
-        #else
-            byte     exportBuf[MAX_EXPORT_ECC_SZ];
         #endif
-            word32   expSz = MAX_EXPORT_ECC_SZ;
+        #ifdef CYASSL_SMALL_STACK
+            byte*   exportBuf = NULL;
+        #else
+            byte    exportBuf[MAX_EXPORT_ECC_SZ];
+        #endif
+            word32  expSz = MAX_EXPORT_ECC_SZ;
 
             if (ssl->specs.static_ecdh) {
                 CYASSL_MSG("Using Static ECDH, not sending ServerKeyExchagne");
@@ -11643,25 +11842,54 @@ int DoSessionTicket(CYASSL* ssl,
             length = ENUM_LEN + CURVE_LEN + ENUM_LEN;
             /* pub key size */
             CYASSL_MSG("Using ephemeral ECDH");
+#ifdef HAVE_ECC25519
+            /* in case used set_accept_state after init */
+            if (ssl->specs.useCurve25519) {
+	            /* in case used set_accept_state after init */
+	            if (ssl->ecc25519TempKeyPresent == 0) {
+	                if (ecc25519_make_key(ssl->rng, ssl->ecc25519TempKeySz,
+	                                 ssl->ecc25519TempKey) != 0) {
+	                    ssl->error = ECC_MAKEKEY_ERROR;
+	                    CYASSL_ERROR(ssl->error);
+	                    return ECC_MAKEKEY_ERROR;
+	                }
+	                ssl->ecc25519TempKeyPresent = 1;
+	            }
 
-            /* need ephemeral key now, create it if missing */
-            if (ssl->eccTempKeyPresent == 0) {
-                if (ecc_make_key(ssl->rng, ssl->eccTempKeySz,
-                                 ssl->eccTempKey) != 0) {
-                    return ECC_MAKEKEY_ERROR;
-                }
-                ssl->eccTempKeyPresent = 1;
+            #ifdef CYASSL_SMALL_STACK
+                exportBuf = (byte*)XMALLOC(MAX_EXPORT_ECC_SX, NULL,
+                        DYNAMIC_TYPE_TMP_BUFFER);
+                if (exportBuf == NULL)
+                    return MEMORY_E;
+            #endif
+
+                if (ecc25519_export_public(ssl->ecc25519TempKey,
+                                                        exportBuf, &expSz) != 0)
+                    ERROR_OUT(ECC_EXPORT_ERROR, done_a);
             }
+#endif
+#ifdef HAVE_ECC
+            if (!ssl->specs.useCurve25519) {
+	            if (ssl->eccTempKeyPresent == 0) {
+	                if (ecc_make_key(ssl->rng, ssl->eccTempKeySz,
+	                                 ssl->eccTempKey) != 0) {
+	                    ssl->error = ECC_MAKEKEY_ERROR;
+	                    CYASSL_ERROR(ssl->error);
+	                    return ECC_MAKEKEY_ERROR;
+	                }
+	                ssl->eccTempKeyPresent = 1;
+	            }
+            #ifdef CYASSL_SMALL_STACK
+                exportBuf = (byte*)XMALLOC(MAX_EXPORT_ECC_SX, NULL,
+                        DYNAMIC_TYPE_TMP_BUFFER);
+                if (exportBuf == NULL)
+                    return MEMORY_E;
+            #endif
 
-        #ifdef CYASSL_SMALL_STACK
-            exportBuf = (byte*)XMALLOC(MAX_EXPORT_ECC_SZ, NULL,
-                                                       DYNAMIC_TYPE_TMP_BUFFER);
-            if (exportBuf == NULL)
-                return MEMORY_E;
-        #endif
-
-            if (ecc_export_x963(ssl->eccTempKey, exportBuf, &expSz) != 0)
-                ERROR_OUT(ECC_EXPORT_ERROR, done_a);
+                if (ecc_export_x963(ssl->eccTempKey, exportBuf, &expSz) != 0)
+                    ERROR_OUT(ECC_EXPORT_ERROR, done_a);
+            }
+#endif
             length += expSz;
 
             preSigSz  = length;
@@ -11672,8 +11900,9 @@ int DoSessionTicket(CYASSL* ssl,
             if (ret != 0)
                 goto done_a;
         #endif
-
+        #ifdef HAVE_ECC
             ecc_init(&dsaKey);
+        #endif
 
             /* sig length */
             length += LENGTH_SZ;
@@ -11682,7 +11911,9 @@ int DoSessionTicket(CYASSL* ssl,
             #ifndef NO_RSA
                 FreeRsaKey(&rsaKey);
             #endif
+            #ifdef HAVE_ECC
                 ecc_free(&dsaKey);
+            #endif
                 ERROR_OUT(NO_PRIVATE_KEY, done_a);
             }
 
@@ -11694,11 +11925,11 @@ int DoSessionTicket(CYASSL* ssl,
                                           &rsaKey, ssl->buffers.key.length);
                 if (ret != 0)
                     goto done_a;
-                sigSz = RsaEncryptSize(&rsaKey);
-            } else
-        #endif
-
-            if (ssl->specs.sig_algo == ecc_dsa_sa_algo) {
+                sigSz = RsaEncryptSize(&rsaKey); 
+            } else 
+#endif
+        #ifdef HAVE_ECC
+           if (ssl->specs.sig_algo == ecc_dsa_sa_algo) {
                 /* ecdsa sig size */
                 word32 i = 0;
                 ret = EccPrivateKeyDecode(ssl->buffers.key.buffer, &i,
@@ -11707,11 +11938,15 @@ int DoSessionTicket(CYASSL* ssl,
                     goto done_a;
                 sigSz = ecc_sig_size(&dsaKey);  /* worst case estimate */
             }
-            else {
-            #ifndef NO_RSA
+            else
+        #endif
+            {
+        #ifndef NO_RSA
                 FreeRsaKey(&rsaKey);
-            #endif
+        #endif
+        #ifdef HAVE_ECC
                 ecc_free(&dsaKey);
+        #endif
                 ERROR_OUT(ALGO_ID_E, done_a);  /* unsupported type */
             }
             length += sigSz;
@@ -11733,9 +11968,11 @@ int DoSessionTicket(CYASSL* ssl,
             #ifndef NO_RSA
                 FreeRsaKey(&rsaKey);
             #endif
-                ecc_free(&dsaKey);
+            #ifdef HAVE_ECC
+                ecc_free(&dsaKey); 
+            #endif
                 goto done_a;
-            }
+            } 
 
             /* get ouput buffer */
             output = ssl->buffers.outputBuffer.buffer +
@@ -11747,7 +11984,17 @@ int DoSessionTicket(CYASSL* ssl,
             /* key exchange data */
             output[idx++] = named_curve;
             output[idx++] = 0x00;          /* leading zero */
-            output[idx++] = SetCurveId(ecc_size(ssl->eccTempKey));
+#ifdef HAVE_ECC25519
+            if (ssl->ecc25519TempKeyPresent && ssl->specs.useCurve25519) {
+                output[idx++] =
+                           SetCurve25519Id(ecc25519_size(ssl->ecc25519TempKey));
+                CYASSL_MSG("Using curve25519 for ecc key exchange");
+            }
+#endif
+#ifdef HAVE_ECC
+            if (ssl->eccTempKeyPresent && !ssl->specs.useCurve25519)
+                output[idx++] = SetCurveId(ecc_size(ssl->eccTempKey));
+#endif
             output[idx++] = (byte)expSz;
             XMEMCPY(output + idx, exportBuf, expSz);
             idx += expSz;
@@ -11945,19 +12192,20 @@ int DoSessionTicket(CYASSL* ssl,
                                           sigSz, &rsaKey, ssl->rng);
 
                     FreeRsaKey(&rsaKey);
+                #ifdef HAVE_ECC
                     ecc_free(&dsaKey);
-
-                #ifdef CYASSL_SMALL_STACK
-                    XFREE(encodedSig, NULL, DYNAMIC_TYPE_TMP_BUFFER);
                 #endif
-
+                #ifdef CYASSL_SMALL_STACK
+                    XFREE(encodeSig, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+                #endif
                     if (ret < 0)
                         goto done_a2;
                 } else
             #endif
 
                 if (ssl->suites->sigAlgo == ecc_dsa_sa_algo) {
-                #ifndef NO_OLD_TLS
+#ifdef HAVE_ECC
+#ifndef NO_OLD_TLS
                     byte* digest = &hash[MD5_DIGEST_SIZE];
                     word32 digestSz = SHA_DIGEST_SIZE;
                 #else
@@ -11967,10 +12215,12 @@ int DoSessionTicket(CYASSL* ssl,
                     word32 sz = sigSz;
                     byte   doUserEcc = 0;
 
-                #if defined(HAVE_PK_CALLBACKS) && defined(HAVE_ECC)
-                    if (ssl->ctx->EccSignCb)
-                        doUserEcc = 1;
-                #endif
+                    #ifdef HAVE_PK_CALLBACKS
+                        #ifdef HAVE_ECC
+                            if (ssl->ctx->EccSignCb)
+                                doUserEcc = 1;
+                        #endif /* HAVE_ECC */
+                    #endif /*HAVE_PK_CALLBACKS */
 
                     if (IsAtLeastTLSv1_2(ssl)) {
                         if (ssl->suites->hashAlgo == sha_mac) {
@@ -11994,13 +12244,15 @@ int DoSessionTicket(CYASSL* ssl,
                     }
 
                     if (doUserEcc) {
-                    #if defined(HAVE_PK_CALLBACKS) && defined(HAVE_ECC)
-                        ret = ssl->ctx->EccSignCb(ssl, digest, digestSz,
-                                                  output + LENGTH_SZ + idx, &sz,
-                                                  ssl->buffers.key.buffer,
-                                                  ssl->buffers.key.length,
-                                                  ssl->EccSignCtx);
-                    #endif
+                    #ifdef HAVE_PK_CALLBACKS
+                        #ifdef HAVE_ECC
+                            ret = ssl->ctx->EccSignCb(ssl, digest, digestSz,
+                                            output + LENGTH_SZ + idx, &sz,
+                                            ssl->buffers.key.buffer,
+                                            ssl->buffers.key.length,
+                                            ssl->EccSignCtx);
+                        #endif /* HAVE_ECC */
+                    #endif /*HAVE_PK_CALLBACKS */
                     }
                     else {
                         ret = ecc_sign_hash(digest, digestSz,
@@ -12020,6 +12272,7 @@ int DoSessionTicket(CYASSL* ssl,
                     /* And adjust length and sendSz from estimates */
                     length += sz - sigSz;
                     sendSz += sz - sigSz;
+#endif
                 }
 
             done_a2:
@@ -12543,6 +12796,15 @@ int DoSessionTicket(CYASSL* ssl,
         }
 #endif
 
+        if (first == ECC_BYTE) {
+            /* check for montgomery */
+            if (!ssl->specs.useCurve25519) {
+                #ifndef HAVE_ECC
+                return 0;
+                #endif
+            }
+        }
+
         /* ECCDHE is always supported if ECC on */
 
         return 1;
@@ -12927,6 +13189,22 @@ int DoSessionTicket(CYASSL* ssl,
 
         if ((i - begin) + b > helloSz)
             return BUFFER_ERROR;
+
+        /* check for montgomery point format */
+        if (ssl->specs.useCurve25519) {
+            printf("checking if montgomery available to client\n");
+            int index = 0;
+            int match = 0;
+            for (index = 0; index < b; index++) {
+                if (input[i + index] == MONTGOMERY_X_LE)
+                    match = 1;
+            }
+            if (!match) {
+                printf("client not using montgomery\n");
+                CYASSL_MSG("Not matching montgomery, turning off");
+                ssl->specs.useCurve25519 = 0;
+            }
+        }
 
         if (ssl->options.usingCompression) {
             int match = 0;
@@ -13548,7 +13826,7 @@ int DoSessionTicket(CYASSL* ssl,
             }
             break;
         #endif /* HAVE_NTRU */
-        #ifdef HAVE_ECC
+        #if defined(HAVE_ECC) || defined(HAVE_ECC25519)
             case ecc_diffie_hellman_kea:
             {
                 if ((*inOutIdx - begin) + OPAQUE8_LEN > size)
@@ -13559,43 +13837,73 @@ int DoSessionTicket(CYASSL* ssl,
                 if ((*inOutIdx - begin) + length > size)
                     return BUFFER_ERROR;
 
-                if (ssl->peerEccKeyPresent) {  /* don't leak on reuse */
-                    ecc_free(ssl->peerEccKey);
-                    ssl->peerEccKeyPresent = 0;
-                    ecc_init(ssl->peerEccKey);
-                }
+#ifdef HAVE_ECC25519
+	            if (ssl->peerEcc25519KeyPresent) {  /* don't leak on reuse */
+	                ecc25519_free(ssl->peerEcc25519Key);
+	                ssl->peerEcc25519KeyPresent = 0;
+	                ecc25519_init(ssl->peerEcc25519Key);
+	            }
+                /*perform work with ecc25519*/
+                if (ssl->specs.useCurve25519) {
+	                if (ecc25519_import_public(input + *inOutIdx, length,
+                                                          ssl->peerEcc25519Key))
+                        return ECC_PEERKEY_ERROR;
 
-                if (ecc_import_x963(input + *inOutIdx, length, ssl->peerEccKey))
-                    return ECC_PEERKEY_ERROR;
+	                *inOutIdx += length;
+	                ssl->peerEcc25519KeyPresent = 1;
 
-                *inOutIdx += length;
-                ssl->peerEccKeyPresent = 1;
+	                length = sizeof(ssl->arrays->preMasterSecret);
 
-                length = sizeof(ssl->arrays->preMasterSecret);
+                    /* Location where ECDH logic would go if needed  */
 
-                if (ssl->specs.static_ecdh) {
-                    ecc_key staticKey;
-                    word32 i = 0;
-
-                    ecc_init(&staticKey);
-                    ret = EccPrivateKeyDecode(ssl->buffers.key.buffer, &i,
-                                           &staticKey, ssl->buffers.key.length);
-
-                    if (ret == 0)
-                        ret = ecc_shared_secret(&staticKey, ssl->peerEccKey,
+                    ret = ecc25519_shared_secret(ssl->ecc25519TempKey,
+                                         ssl->peerEcc25519Key,
                                          ssl->arrays->preMasterSecret, &length);
-
-                    ecc_free(&staticKey);
                 }
                 else {
-                    if (ssl->eccTempKeyPresent == 0) {
-                        CYASSL_MSG("Ecc ephemeral key not made correctly");
-                        ret = ECC_MAKEKEY_ERROR;
-                    } else {
-                        ret = ecc_shared_secret(ssl->eccTempKey,ssl->peerEccKey,
-                                         ssl->arrays->preMasterSecret, &length);
-                    }
+#endif
+                /*perform work with ecc*/
+#ifdef HAVE_ECC
+	            if (ssl->peerEccKeyPresent) {  /* don't leak on reuse */
+	                ecc_free(ssl->peerEccKey);
+	                ssl->peerEccKeyPresent = 0;
+	                ecc_init(ssl->peerEccKey);
+	            }
+                if (!ssl->specs.useCurve25519) {
+	                if (ecc_import_x963(input + *inOutIdx, length,
+                                                               ssl->peerEccKey))
+                        return ECC_PEERKEY_ERROR;
+
+	                *inOutIdx += length;
+	                ssl->peerEccKeyPresent = 1;
+
+	                length = sizeof(ssl->arrays->preMasterSecret);
+
+	                if (ssl->specs.static_ecdh) {
+	                    ecc_key staticKey;
+	                    word32 i = 0;
+
+	                    ecc_init(&staticKey);
+	                    ret = EccPrivateKeyDecode(ssl->buffers.key.buffer, &i,
+	                                       &staticKey, ssl->buffers.key.length);
+
+	                    if (ret == 0)
+	                        ret = ecc_shared_secret(&staticKey, ssl->peerEccKey,
+	                                     ssl->arrays->preMasterSecret, &length);
+
+	                    ecc_free(&staticKey);
+	                }
+	                else
+	                    ret = ecc_shared_secret(ssl->eccTempKey, ssl->peerEccKey
+                                       , ssl->arrays->preMasterSecret, &length);
+                }/*end of work with ecc*/
+                else {
+#endif
+                    return ECC_PEERKEY_ERROR;
                 }
+#if defined(HAVE_ECC) && defined(HAVE_ECC25519)
+                }
+#endif
 
                 if (ret != 0)
                     return ECC_SHARED_ERROR;

@@ -46,6 +46,9 @@
 #ifdef HAVE_ECC
     #include <cyassl/ctaocrypt/ecc.h>
 #endif
+#ifdef HAVE_ECC25519
+    #include <cyassl/ctaocrypt/ecc25519.h>
+#endif
 #ifndef NO_SHA256
     #include <cyassl/ctaocrypt/sha256.h>
 #endif
@@ -342,82 +345,109 @@ typedef byte word24[3];
     #endif
 #endif
 
-#if defined(HAVE_ECC) && !defined(NO_TLS)
+#if defined(HAVE_ECC) || defined(HAVE_ECC25519) && !defined(NO_TLS)
     #if !defined(NO_AES)
         #if !defined(NO_SHA)
             #if !defined(NO_RSA)
                 #define BUILD_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
                 #define BUILD_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA
-                #define BUILD_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA
-                #define BUILD_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA
+                #if defined(HAVE_ECC)
+                    #define BUILD_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA
+                    #define BUILD_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA
+                #endif
             #endif
     
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
-    
-            #define BUILD_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA
-            #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA
+            #ifdef HAVE_ECC
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
+                #define BUILD_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA
+                #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA
+            #endif
         #endif /* NO_SHA */
         #ifndef NO_SHA256
             #if !defined(NO_RSA)
                 #define BUILD_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
-                #define BUILD_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256
+                #ifdef HAVE_ECC
+                    #define BUILD_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256
+                #endif
             #endif
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
-            #define BUILD_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256
+            #ifdef HAVE_ECC
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
+                #define BUILD_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256
+            #endif
         #endif
 
         #ifdef CYASSL_SHA384
             #if !defined(NO_RSA)
                 #define BUILD_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384
-                #define BUILD_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384
+                #if defined(HAVE_ECC)
+                    #define BUILD_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384
+                #endif
             #endif
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384
-            #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384
+            #ifdef HAVE_ECC
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384
+                #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384
+            #endif
         #endif
 
         #if defined (HAVE_AESGCM)
             #if !defined(NO_RSA)
                 #define BUILD_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                #define BUILD_TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256
+                #if defined(HAVE_ECC)
+                    #define BUILD_TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256
+                #endif
                 #if defined(CYASSL_SHA384)
                     #define BUILD_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-                    #define BUILD_TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384
+                    #if defined(HAVE_ECC)
+                        #define BUILD_TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384
+                    #endif
                 #endif
             #endif
 
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-            #define BUILD_TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256
+            #ifdef HAVE_ECC
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+                #define BUILD_TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256
             
-            #if defined(CYASSL_SHA384)
-                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-                #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384
+                #if defined(CYASSL_SHA384)
+                    #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+                    #define BUILD_TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384
+                #endif
             #endif
         #endif
         #if defined (HAVE_AESCCM)
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8
+            #ifdef HAVE_ECC
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8
+            #endif
         #endif
     #endif /* NO_AES */
     #if !defined(NO_RC4)
         #if !defined(NO_SHA)
             #if !defined(NO_RSA)
                 #define BUILD_TLS_ECDHE_RSA_WITH_RC4_128_SHA
-                #define BUILD_TLS_ECDH_RSA_WITH_RC4_128_SHA
+                #if defined(HAVE_ECC)
+                    #define BUILD_TLS_ECDH_RSA_WITH_RC4_128_SHA
+                #endif
             #endif
 
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
-            #define BUILD_TLS_ECDH_ECDSA_WITH_RC4_128_SHA
+            #ifdef HAVE_ECC
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
+                #define BUILD_TLS_ECDH_ECDSA_WITH_RC4_128_SHA
+            #endif
         #endif
     #endif
     #if !defined(NO_DES3)
         #if !defined(NO_RSA)
             #define BUILD_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
-            #define BUILD_TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA
+            #if defined(HAVE_ECC)
+                #define BUILD_TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA
+            #endif
         #endif
 
-        #define BUILD_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA
-        #define BUILD_TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA
+        #ifdef HAVE_ECC
+            #define BUILD_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA
+            #define BUILD_TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA
+        #endif
     #endif
 #endif
 
@@ -476,11 +506,13 @@ typedef byte word24[3];
     #define CHACHA20_BLOCK_SIZE 16 
     /* ChaCha - Poly AEAD suites */
     #if defined(HAVE_POLY1305) && !defined(NO_SHA256)
-        #if defined(HAVE_ECC)
+        #if defined(HAVE_ECC) || defined(HAVE_ECC25519)
             #if !defined(NO_RSA)
                 #define BUILD_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
             #endif
-            #define BUILD_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+            #if defined(HAVE_ECC)
+                #define BUILD_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+            #endif
         #endif
         #if !defined(NO_DH) && !defined(NO_RSA)
             #define BUILD_TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256
@@ -648,6 +680,7 @@ enum Misc {
     INVALID_BYTE    = 0xff,     /* Used to initialize cipher specs values */
     NO_COMPRESSION  =  0,
     ZLIB_COMPRESSION = 221,     /* CyaSSL zlib compression */
+    MONTGOMERY_X_LE  = 0x41,    /* TODO point format for curve25519 */
     HELLO_EXT_SIG_ALGO = 13,    /* ID for the sig_algo hello extension */
     SECRET_LEN      = 48,       /* pre RSA and all master */
     ENCRYPT_LEN     = 512,      /* allow 4096 bit static buffer */
@@ -1427,6 +1460,9 @@ struct CYASSL_CTX {
     word16          eccTempKeySz;       /* in octets 20 - 66 */
     word32          pkCurveOID;         /* curve Ecc_Sum */
 #endif
+#ifdef HAVE_ECC25519
+    word16          ecc25519TempKeySz;  /* in octets 20 - 66 */
+#endif
 #ifndef NO_PSK
     byte        havePSK;                /* psk key set by user */
     psk_client_callback client_psk_cb;  /* client callback */
@@ -1497,6 +1533,7 @@ typedef struct CipherSpecs {
     byte hash_size;
     byte pad_size;
     byte static_ecdh;
+    byte useCurve25519;             /* flag to use curve25519 */
     word16 key_size;
     word16 iv_size;
     word16 block_size;
@@ -1558,7 +1595,9 @@ enum EccNamedCurves {
 
     secp160r1 = 0x10,
     secp192r1 = 0x13,        /*           Openssl also call it prime192v1 */
-    secp224r1 = 0x15
+    secp224r1 = 0x15,
+
+    curve25519 = 0x30        /*       TODO standard value to be determined*/
 };
 
 
@@ -1614,7 +1653,7 @@ typedef struct Ciphers {
 #ifdef HAVE_ONE_TIME_AUTH
 /* Ciphers for one time authentication such as poly1305 */
 typedef struct OneTimeAuth {
-#ifdef HAVE_POLY1305 
+#ifdef HAVE_POLY1305
     Poly1305* poly1305;
 #endif
     byte    setup;      /* flag for if a cipher has been set */
@@ -1788,6 +1827,7 @@ typedef struct Options {
     byte            sentNotify;         /* we've sent a close notify */
     byte            connectState;       /* nonblocking resume */
     byte            acceptState;        /* nonblocking resume */
+    byte            testCurve25519;     /* use for testing with curve25519 */
     byte            usingCompression;   /* are we using compression */
     byte            haveRSA;            /* RSA available */
     byte            haveDH;             /* server DH parms set by user */
@@ -2056,6 +2096,13 @@ struct CYASSL {
     byte            peerEccDsaKeyPresent;
     byte            eccTempKeyPresent;
     byte            eccDsaKeyPresent;
+#endif
+#ifdef HAVE_ECC25519
+    ecc25519_key*   peerEcc25519Key;         /* peer's  ECDHE key */
+    ecc25519_key*   ecc25519TempKey;         /* private ECDHE key */
+    word16          ecc25519TempKeySz;       /* in octets 20 - 66 */
+    byte            peerEcc25519KeyPresent;
+    byte            ecc25519TempKeyPresent;
 #endif
     hmacfp          hmac;
     void*           heap;               /* for user overrides */
